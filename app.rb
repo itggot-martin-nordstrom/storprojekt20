@@ -25,7 +25,7 @@ post('/sign_up') do
                 password_digest = BCrypt::Password.create(password)
                 db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
                 session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)
-                redirect('users/home')
+                redirect('users/first_login')
             else
                 session[:error] = "Password is too short"
                 redirect('/error')
@@ -39,6 +39,9 @@ post('/sign_up') do
     end
 end
 
+get('/users/first_login') do 
+    slim(:"users/first_login")
+end
 
 post("/login") do
     username = params["username"]
@@ -72,9 +75,9 @@ get('/users/home') do
         redirect('/error')
     else
         # id_num = session[:id][0]["id"]
-        # result = db.execute('SELECT id,content FROM to_dos WHERE user_id = ?', id_num)
-        result = "hello"
-        slim(:"users/home", locals:{list: result})
+        users = db.execute('SELECT * FROM users')
+        options = db.execute('SELECT content, for_user FROM options')
+        slim(:"users/home", locals:{users: users})
     end
 end
 
