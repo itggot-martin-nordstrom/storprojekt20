@@ -81,10 +81,11 @@ get('/users/home') do
     end
 end
 
-post('/users/set_name') do 
-    new_name = params["new_name"]
+post('/users/complete_profile') do 
+    firstname = params["new_name"].downcase
+    class_name = params["class"].downcase
 
-    db = db.execute("UPDATE users SET name=#{new_name.to_s} WHERE id=?", session[:id])
+    db = db.execute("UPDATE users SET name=?, classname=? WHERE id=?", session[:id])
     # ???
     redirect('/users/home')
 end
