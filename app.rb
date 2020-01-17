@@ -21,7 +21,7 @@ post('/sign_up') do
 
     if result.empty?
         if password == confirm_password
-            if password.length >= 8
+            if password.length >= 4
                 password_digest = BCrypt::Password.create(password)
                 db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
                 session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)
@@ -41,6 +41,15 @@ end
 
 get('/users/first_login') do 
     slim(:"users/first_login")
+end
+
+post('/users/complete_profile') do 
+    firstname = params["new_name"].downcase
+    class_name = params["class"].downcase
+
+    db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [firstname, class_name, session[:id]])
+    # ???
+    redirect('/users/home')
 end
 
 post("/login") do
@@ -74,20 +83,14 @@ get('/users/home') do
         session[:error] = "Not logged in"
         redirect('/error')
     else
-        # id_num = session[:id][0]["id"]
-        users = db.execute('SELECT * FROM users')
-        options = db.execute('SELECT content, for_user FROM options')
+        p session[:id]
+        current_user = session[:id][0]["id"]
+        current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)[0]["class_name"]
+
+        users = db.execute('SELECT * FROM users LEFT JOIN options ON users.id = options.for_user WHERE class_name=? AND for_user !=?', [current_class.to_s, current_user])
+        # options = db.execute('SELECT * FROM options WHERE for_user=?')
         slim(:"users/home", locals:{users: users})
     end
-end
-
-post('/users/complete_profile') do 
-    firstname = params["new_name"].downcase
-    class_name = params["class"].downcase
-
-    db = db.execute("UPDATE users SET name=?, classname=? WHERE id=?", session[:id])
-    # ???
-    redirect('/users/home')
 end
 
 get('/error') do
