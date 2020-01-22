@@ -1,0 +1,17 @@
+p = votes
+
+a Href="/users/home" Back
+
+article.option
+    - votes.each do |option|
+        h3 = option["content"]
+        - if option["votes_from"] != nil
+            p = option["votes_from"].length
+        form action="/vote/#{option['option_id']}" method="post"
+            button type="submit" Vote
+        
+    p New voting option
+    form action="/vote/new/#{vote_for}" method="post"
+        input type="text" name="new_option" placeholder="New option"
+        button type="submit" Send
+        

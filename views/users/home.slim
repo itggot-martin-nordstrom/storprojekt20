@@ -1,5 +1,9 @@
 form action="/users/logout" method="post"
     button type="submit" Log out
 
-- users.each do |e|
-    p = e 
+p = classmates
+
+ul
+    - classmates.each do |e|
+        li
+            a href="/users/voting/#{e['id']}" = e["name"]

@@ -9,7 +9,7 @@ db = SQLite3::Database.new('database/database.db')
 db.results_as_hash = true
 
 get('/') do
-    slim(:index)
+    slim(:start)
 end
 
 post('/sign_up') do
@@ -24,7 +24,7 @@ post('/sign_up') do
             if password.length >= 4
                 password_digest = BCrypt::Password.create(password)
                 db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
-                session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)
+                session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)[0]['id']
                 redirect('users/first_login')
             else
                 session[:error] = "Password is too short"
@@ -46,6 +46,8 @@ end
 post('/users/complete_profile') do 
     firstname = params["new_name"].downcase
     class_name = params["class"].downcase
+
+    p session[:id]
 
     db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [firstname, class_name, session[:id]])
     # ???
@@ -84,13 +86,43 @@ get('/users/home') do
         redirect('/error')
     else
         p session[:id]
-        current_user = session[:id][0]["id"]
-        current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)[0]["class_name"]
+        current_user = session[:id][0]['id']
 
-        users = db.execute('SELECT * FROM users LEFT JOIN options ON users.id = options.for_user WHERE class_name=? AND for_user !=?', [current_class.to_s, current_user])
-        # options = db.execute('SELECT * FROM options WHERE for_user=?')
-        slim(:"users/home", locals:{users: users})
+        current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
+        p current_class
+
+        if current_class[0]['class_name'] != nil
+            
+            classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
+            slim(:"users/home", locals:{classmates: classmates})
+        else
+            # votes = db.execute('SELECT * FROM users LEFT JOIN options ON users.id = options.for_user WHERE class_name=? AND for_user !=?', [current_class.to_s, current_user])
+            votes = db.execute('SELECT name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY no_of_votes')
+            slim(:"users/admin", locals:{options: votes})
+        end
     end
+end
+
+get('/users/voting/:id') do
+    id = params["id"]
+    
+
+    votes = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes', id)
+    slim(:"users/voting", locals:{votes: votes, vote_for: id})
+end
+
+post('/vote/new/:vote_for') do
+    content = params['new_option']
+    vote_for = params['vote_for']
+    current_user = session[:id][0]['id']
+
+    db.execute('INSERT INTO options(content, for_user) VALUES (?,?)', [content, vote_for])
+
+    option_id = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, vote_for])[0]['option_id']
+    
+    db.execute('INSERT INTO votes(voter_id, option_target_id, option_id) VALUES (?,?,?)', [current_user, vote_for, option_id])
+
+    redirect("/users/voting/#{vote_for}")
 end
 
 get('/error') do
