@@ -1,13 +1,17 @@
-p = votes
+/ p = votes
 
-a Href="/users/home" Back
+a href="/users/home" Back
+- if users_vote == []
+    h1 You haven't voted
+- else
+    h1 = "You have voted for #{users_vote}"  
 
 article.option
     - votes.each do |option|
         h3 = option["content"]
         - if option["votes_from"] != nil
             p = option["votes_from"].length
-        form action="/vote/#{option['option_id']}" method="post"
+        form action="/vote/#{vote_for}/#{option['option_id']}" method="post"
             button type="submit" Vote
         
     p New voting option

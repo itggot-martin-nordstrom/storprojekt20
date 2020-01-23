@@ -66,7 +66,8 @@ post("/login") do
         user_id = result.first["id"]
         password_digest = result.first["password_digest"]
         if BCrypt::Password.new(password_digest) == password
-            session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)
+            session[:id] = user_id
+            # p session[:id]
             redirect("/users/home")
         else
             session[:error] = "Wrong password"
@@ -85,12 +86,12 @@ get('/users/home') do
         session[:error] = "Not logged in"
         redirect('/error')
     else
-        p session[:id]
-        current_user = session[:id][0]['id']
-
+        # p session[:id]
+        current_user = session[:id]
+        
         current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
-        p current_class
-
+        # p current_class
+        
         if current_class[0]['class_name'] != nil
             
             classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
@@ -105,21 +106,47 @@ end
 
 get('/users/voting/:id') do
     id = params["id"]
-    
+    current_user = session[:id]
+    # p current_user
 
-    votes = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes', id)
-    slim(:"users/voting", locals:{votes: votes, vote_for: id})
+    options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes', id)
+
+    # middle_man = db.execute("SELECT option_id FROM votes WHERE voter_id = #{current_user.to_s} AND option_target_id = #{id}").first['option_id']
+    # p middle_man
+    # users_vote = db.execute("SELECT content FROM options WHERE option_id =?", middle_man)
+
+    users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND option_target_id = ?)", [current_user, id])
+    p users_vote
+    if users_vote != []
+        users_vote = users_vote.first['content']
+    end
+    # p users_vote
+
+    slim(:"users/voting", locals:{votes: options, vote_for: id, users_vote: users_vote})
 end
 
-post('/vote/new/:vote_for') do
+post('/vote/new/:option_for') do
     content = params['new_option']
-    vote_for = params['vote_for']
-    current_user = session[:id][0]['id']
-
-    db.execute('INSERT INTO options(content, for_user) VALUES (?,?)', [content, vote_for])
-
-    option_id = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, vote_for])[0]['option_id']
+    option_for = params['vote_for']
     
+    db.execute('INSERT INTO options(content, for_user) VALUES (?,?)', [content, option_for])
+    
+    # option_id = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, option_for])[0]['option_id']
+    
+    
+    redirect("/users/voting/#{option_for}")
+end
+
+post('/vote/:vote_for/:option_id') do
+    current_user = session[:id]
+    option_id = params['option_id']
+    vote_for = params['vote_for']
+
+    exister = db.execute('SELECT option_id FROM votes WHERE voter_id=? AND  option_target_id=?', [current_user, vote_for])
+    
+    if exister.length != 0
+        db.execute('DELETE FROM votes WHERE voter_id=? AND  option_target_id=?', [current_user, vote_for])
+    end
     db.execute('INSERT INTO votes(voter_id, option_target_id, option_id) VALUES (?,?,?)', [current_user, vote_for, option_id])
 
     redirect("/users/voting/#{vote_for}")
