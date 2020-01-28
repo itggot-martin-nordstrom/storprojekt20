@@ -107,34 +107,44 @@ end
 get('/users/voting/:id') do
     id = params["id"]
     current_user = session[:id]
-    # p current_user
 
-    options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes', id)
+    # safety för användare som inte är i samma klass
+    user_classname = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
+    target_classname = db.execute('SELECT class_name FROM users WHERE id=?', id)
+    p user_classname
+    p target_classname
+    if user_classname != target_classname
+        session[:error] = "Oops, you can't vote for that user!"
+        redirect('/error')
+    else
+        options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes', id)
+        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND option_target_id = ?)", [current_user, id])
+        # p users_vote
+        if users_vote != []
+            users_vote = users_vote.first['content']
+        end
 
-    # middle_man = db.execute("SELECT option_id FROM votes WHERE voter_id = #{current_user.to_s} AND option_target_id = #{id}").first['option_id']
-    # p middle_man
-    # users_vote = db.execute("SELECT content FROM options WHERE option_id =?", middle_man)
-
-    users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND option_target_id = ?)", [current_user, id])
-    p users_vote
-    if users_vote != []
-        users_vote = users_vote.first['content']
+        slim(:"users/voting", locals:{votes: options, vote_for: id, users_vote: users_vote})
     end
-    # p users_vote
 
-    slim(:"users/voting", locals:{votes: options, vote_for: id, users_vote: users_vote})
 end
 
 post('/vote/new/:option_for') do
     content = params['new_option']
-    option_for = params['vote_for']
+    option_for = params['option_for']
     
-    db.execute('INSERT INTO options(content, for_user) VALUES (?,?)', [content, option_for])
-    
-    # option_id = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, option_for])[0]['option_id']
-    
-    
-    redirect("/users/voting/#{option_for}")
+    # safety för dubletter
+    exister = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, option_for])
+
+    if exister.empty?
+        db.execute('INSERT INTO options(content, for_user) VALUES (?,?)', [content, option_for])
+        redirect("/users/voting/#{option_for}")
+    else
+        session[:error] = "Option already exists, go vote for it!"
+        redirect('/error')
+    end
+
+    # option_id = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, option_for])[0]['option_id'] 
 end
 
 post('/vote/:vote_for/:option_id') do
