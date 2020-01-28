@@ -8,14 +8,16 @@ a href="/users/home" Back
 
 article.option
     - votes.each do |option|
-        h3 = option["content"]
-        - if option["votes_from"] != nil
-            p = option["votes_from"].length
         form action="/vote/#{vote_for}/#{option['option_id']}" method="post"
-            button type="submit" Vote
+            fieldset
+                h3 = option["content"]
+                - if option["no_of_votes"] != nil
+                    p = option["no_of_votes"]
+                - if users_vote != option["content"]
+                    button type="submit" Vote
         
     p New voting option
-    form action="/vote/new/#{vote_for}" method="post"
+    form action="/vote/new/#{vote_for}" method="post" autocomplete="off"
         input type="text" name="new_option" placeholder="New option"
         button type="submit" Send
         
