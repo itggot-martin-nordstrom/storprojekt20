@@ -9,6 +9,8 @@ db = SQLite3::Database.new('database/database.db')
 db.results_as_hash = true
 
 get('/') do
+    @failed ||= false
+    p @failed
     slim(:start)
 end
 
@@ -58,20 +60,26 @@ post("/login") do
     username = params["username"]
     password = params["password"]
 
-    result = db.execute("SELECT id, password_digest FROM users WHERE username = ?", username)
+    result = db.execute("SELECT id, password_digest, class_name FROM users WHERE username = ?", username)
     if result.empty?    
         session[:error] = "Invalid credentials"
-        redirect('/error')
+        @failed = true
+        redirect('/')
     else
         user_id = result.first["id"]
         password_digest = result.first["password_digest"]
         if BCrypt::Password.new(password_digest) == password
             session[:id] = user_id
             # p session[:id]
-            redirect("/users/home")
+            
+            if result.first["class_name"] != nil
+                redirect("/users/home")
+            else
+                redirect('/admin/home/id')
+            end
         else
-            session[:error] = "Wrong password"
-            redirect('/error')
+            @failed = true
+            redirect('/')
         end
     end
 end
@@ -92,16 +100,35 @@ get('/users/home') do
         current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
         # p current_class
         
-        if current_class[0]['class_name'] != nil
-            
-            classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
-            slim(:"users/home", locals:{classmates: classmates})
-        else
-            # votes = db.execute('SELECT * FROM users LEFT JOIN options ON users.id = options.for_user WHERE class_name=? AND for_user !=?', [current_class.to_s, current_user])
-            votes = db.execute('SELECT name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY no_of_votes')
-            slim(:"users/admin", locals:{options: votes})
-        end
+        classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
+        slim(:"users/home", locals:{classmates: classmates})
     end
+end
+
+get('/admin/home/:order') do
+    order = params['order']
+
+    # p order
+
+    votes = db.execute('SELECT option_id, name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY ?', order)
+    slim(:"admin/home", locals:{options: votes})
+end
+
+post('/admin/order_by') do
+    order = params['order']
+
+    # p order
+
+    redirect("/admin/home/#{order}")
+end
+
+post('/admin/remove_option/:id') do
+    option_id = params['id']
+
+    db.execute('DELETE FROM options WHERE option_id=?', option_id)
+    db.execute('DELETE FROM votes WHERE option_id=?', option_id)
+
+    redirect('/users/home')
 end
 
 get('/users/voting/:id') do
@@ -118,7 +145,7 @@ get('/users/voting/:id') do
         redirect('/error')
     else
         options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes DESC', id)
-        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND option_target_id = ?)", [current_user, id])
+        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND target_id = ?)", [current_user, id])
         # p users_vote
         if users_vote != []
             users_vote = users_vote.first['content']
@@ -152,17 +179,17 @@ post('/vote/:vote_for/:option_id') do
     option_id = params['option_id']
     vote_for = params['vote_for']
 
-    exister = db.execute('SELECT option_id FROM votes WHERE voter_id=? AND  option_target_id=?', [current_user, vote_for])
+    exister = db.execute('SELECT option_id FROM votes WHERE voter_id=? AND  target_id=?', [current_user, vote_for])
     
     if exister.length != 0
         old_id = exister[0]['option_id']
         no_of_votes = db.execute('SELECT no_of_votes FROM options WHERE option_id=?', old_id)[0]['no_of_votes']
         
-        db.execute('DELETE FROM votes WHERE voter_id=? AND  option_target_id=?', [current_user, vote_for])
+        db.execute('DELETE FROM votes WHERE voter_id=? AND  target_id=?', [current_user, vote_for])
         # removes one vote from option
         db.execute('UPDATE options SET no_of_votes=? WHERE option_id=?', [no_of_votes-1, old_id])
     end
-    db.execute('INSERT INTO votes(voter_id, option_target_id, option_id) VALUES (?,?,?)', [current_user, vote_for, option_id])
+    db.execute('INSERT INTO votes(voter_id, target_id, option_id) VALUES (?,?,?)', [current_user, vote_for, option_id])
 
 
     # counts votes_for

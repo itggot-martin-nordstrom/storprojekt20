@@ -1,0 +1,24 @@
+form action="/users/logout" method="post"
+    button type="submit" Log out
+
+p = options
+
+p order by
+form action="/admin/order_by" method="post"
+    select name="order"
+        option value="option_id" id
+        option value="name" name
+        option value="content" content
+        option value="class_name" class name
+    button type="submit" order 
+
+
+
+section
+    - options.each do |e|
+        fieldset
+            p content: #{e['content']}
+            p name: #{e['name']}
+            p classname: #{e['class_name']}
+            form action="/admin/remove_option/#{e['option_id']}" method="post"
+                button type="submit" Remove option
