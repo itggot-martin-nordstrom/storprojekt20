@@ -3,6 +3,8 @@ require "slim"
 require "bcrypt"
 require "SQLite3"
 
+require_relative "model.rb"
+
 enable :sessions
 
 db = SQLite3::Database.new('database/database.db')
@@ -19,24 +21,15 @@ post('/sign_up') do
     password = params["password"]
     confirm_password = params["c_password"]
 
-    result = db.execute("SELECT id FROM users WHERE username=?", username)
+    result = signup_passwords(username, password, confirm_password)
 
-    if result.empty?
-        if password == confirm_password
-            if password.length >= 4
-                password_digest = BCrypt::Password.create(password)
-                db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
-                session[:id] = db.execute('SELECT id FROM users WHERE username=?', username)[0]['id']
-                redirect('users/first_login')
-            else
-                session[:error] = "Password is too short"
-                redirect('/error')
-            end
-        end
-        session[:error] = "Passwords don't match"
-        redirect('/error')
+    p result['current_user']
+
+    if result['error'] == nil
+        session[:id] = result['current_user']
+        redirect('users/first_login')
     else
-        session[:error] = "User already exists"
+        session[:error] = result['error']
         redirect('/error')
     end
 end
@@ -72,11 +65,12 @@ post("/login") do
             session[:id] = user_id
             # p session[:id]
             
-            if result.first["class_name"] != nil
-                redirect("/users/home")
-            else
-                redirect('/admin/home/id')
-            end
+            redirect("/users/home")
+            # if result.first["class_name"] != nil
+            #     redirect("/users/home")
+            # else
+            #     redirect('/admin/home/id')
+            # end
         else
             @failed = true
             redirect('/')
@@ -95,12 +89,13 @@ get('/users/home') do
         redirect('/error')
     else
         # p session[:id]
-        current_user = session[:id]
+        # current_user = session[:id]
         
-        current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
-        # p current_class
+        classmates = fetch_classmates(session[:id])
+        # current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
+        # # p current_class
         
-        classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
+        # classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
         slim(:"users/home", locals:{classmates: classmates})
     end
 end
@@ -200,5 +195,6 @@ post('/vote/:vote_for/:option_id') do
 end
 
 get('/error') do
+    p session[:error]
     slim(:error, locals:{error_message: session[:error]})
 end
