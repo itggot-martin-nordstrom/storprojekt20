@@ -12,7 +12,7 @@ db.results_as_hash = true
 
 get('/') do
     @failed ||= false
-    p @failed
+    # p @failed
     slim(:start)
 end
 
@@ -23,10 +23,10 @@ post('/sign_up') do
 
     result = signup_passwords(username, password, confirm_password)
 
-    p result['current_user']
+    # p result['error']
 
     if result['error'] == nil
-        session[:id] = result['current_user']
+        session[:id] = result[:current_user]
         redirect('users/first_login')
     else
         session[:error] = result['error']
@@ -53,29 +53,21 @@ post("/login") do
     username = params["username"]
     password = params["password"]
 
-    result = db.execute("SELECT id, password_digest, class_name FROM users WHERE username = ?", username)
-    if result.empty?    
-        session[:error] = "Invalid credentials"
-        @failed = true
-        redirect('/')
-    else
-        user_id = result.first["id"]
-        password_digest = result.first["password_digest"]
-        if BCrypt::Password.new(password_digest) == password
-            session[:id] = user_id
-            # p session[:id]
-            
-            redirect("/users/home")
-            # if result.first["class_name"] != nil
-            #     redirect("/users/home")
-            # else
-            #     redirect('/admin/home/id')
-            # end
+    result = login_snake(username, password)
+
+    if result['error'] == nil
+        session[:id] = result[:current_user]
+
+        if result[:admin] == true
+            redirect('/admin/home/name')
         else
-            @failed = true
-            redirect('/')
+            redirect('/users/home')
         end
+    else
+        session[:error] = result['error']
+        redirect('/error') 
     end
+
 end
 
 post('/users/logout') do
@@ -94,8 +86,10 @@ get('/users/home') do
         classmates = fetch_classmates(session[:id])
         # current_class = db.execute('SELECT class_name FROM users WHERE id=?', current_user)
         # # p current_class
-        
+        p classmates
         # classmates = db.execute('SELECT id, name FROM users WHERE class_name=? AND id !=?', [current_class[0]['class_name'], current_user])
+
+
         slim(:"users/home", locals:{classmates: classmates})
     end
 end
@@ -104,9 +98,12 @@ get('/admin/home/:order') do
     order = params['order']
 
     # p order
+    
+    # votes = db.execute('SELECT option_id, name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY ?', order)
 
-    votes = db.execute('SELECT option_id, name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY ?', order)
-    slim(:"admin/home", locals:{options: votes})
+    votes = fetch_options(order)
+
+    slim(:"../admin/home", locals:{options: votes})
 end
 
 post('/admin/order_by') do
@@ -120,8 +117,7 @@ end
 post('/admin/remove_option/:id') do
     option_id = params['id']
 
-    db.execute('DELETE FROM options WHERE option_id=?', option_id)
-    db.execute('DELETE FROM votes WHERE option_id=?', option_id)
+    remove_option(option_id)
 
     redirect('/users/home')
 end
