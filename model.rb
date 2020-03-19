@@ -24,6 +24,19 @@ def user_exists(username)
     return boolean
 end
 
+def completed_profile(username)
+    db = set_db()
+    boolean = true
+
+    result = db.execute("SELECT id,name FROM users WHERE username=?", username)
+    id = result.first['id']
+    if result.first['name'] == nil
+        boolean = false
+    end
+
+    return boolean, id
+end
+
 def signup_passwords(username, password, confirm)
     db = set_db()
     boolean = false
@@ -36,7 +49,7 @@ def signup_passwords(username, password, confirm)
                 db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
                 current_user = db.execute('SELECT id FROM users WHERE username=?', username).first['id']
                 # p "hej" + current_user.to_s
-                errorsmg = nil
+                errormsg = nil
             else
                 errormsg = "Password too short"
             end
@@ -98,11 +111,73 @@ end
 
 def fetch_options(order)
     db = set_db()
-
+    
     p order
-
+    
     options = db.execute("SELECT option_id, name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY #{order}")
     
     return options
     
+end
+
+def fetch_voting_page(user, target)
+    db = set_db()
+    
+    errormsg = nil
+
+    # safety för användare som inte är i samma klass
+    user_classname = db.execute('SELECT class_name FROM users WHERE id=?', user)
+    target_classname = db.execute('SELECT class_name FROM users WHERE id=?', target)
+
+    if user_classname != target_classname
+        errormsg = "Oops, you can't vote for that user!"
+    else
+        options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes DESC', target)
+        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND target_id = ?)", [user, target])
+        # p users_vote
+        if users_vote != []
+            users_vote = users_vote.first['content']
+        end
+    end
+
+    return {options: options, error: errormsg, users_vote: users_vote}
+end
+
+def new_option(content, target)
+    db = set_db()
+    
+    errormsg = nil
+
+    # safety för dubletter
+    exister = db.execute('SELECT option_id FROM options WHERE content=? AND for_user=?', [content, target])
+
+    if exister.empty?
+        db.execute('INSERT INTO options(content, for_user, no_of_votes) VALUES (?,?, 0)', [content, target])
+        # redirect("/users/voting/#{option_for}")
+    else
+        errormsg = "Option already exists, go vote for it!"
+    end
+
+    return errormsg
+end
+
+def vote(user, target, option)
+    db = set_db()
+
+    exister = db.execute('SELECT option_id FROM votes WHERE voter_id=? AND  target_id=?', [user, target])
+    
+    if exister.length != 0
+        old_id = exister[0]['option_id']
+        no_of_votes = db.execute('SELECT no_of_votes FROM options WHERE option_id=?', old_id)[0]['no_of_votes']
+        
+        db.execute('DELETE FROM votes WHERE voter_id=? AND  target_id=?', [user, target])
+        # removes one vote from option
+        db.execute('UPDATE options SET no_of_votes=? WHERE option_id=?', [no_of_votes-1, old_id])
+    end
+    db.execute('INSERT INTO votes(voter_id, target_id, option_id) VALUES (?,?,?)', [user, target, option])
+
+
+    # counts votes_for
+    number = db.execute('SELECT option_id FROM votes WHERE option_id=?', option).length
+    db.execute('UPDATE options SET no_of_votes=? WHERE option_id=?', [number, option])
 end
