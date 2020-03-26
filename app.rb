@@ -13,10 +13,10 @@ db.results_as_hash = true
 
 before do
     path = request.path_info
-    blacklist = ['/', '/login', '/sign_up', '/users/first_login']
+    whitelist = ['/', '/login', '/sign_up', '/users/first_login', '/users/complete_profile', '/error']
     redirect = true
 
-    blacklist.each do |e|
+    whitelist.each do |e|
         if path == e
             redirect = false
         end
@@ -25,11 +25,12 @@ before do
     if session[:id].nil? and redirect
         redirect('/')
     end
+
 end
 
 
 get('/') do
-    @failed ||= false
+    session[:id] = nil
     # p @failed
     slim(:start)
 end
@@ -45,7 +46,7 @@ post('/sign_up') do
     # p result['error']
 
     if result['error'] == nil
-        session[:id] = result[:current_user]
+        # session[:id] = result[:current_user]
         redirect('users/first_login')
     else
         session[:error] = result['error']
@@ -61,38 +62,56 @@ post('/users/complete_profile') do
     firstname = params["new_name"].downcase
     class_name = params["class"].downcase
 
-    p session[:to_complete]
-    db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [firstname, class_name, session[:to_complete]])
-    # ???
-    redirect('/users/home')
+    name_taken = name_taken(firstname, class_name)
+
+    if firstname.nil? == false && class_name.nil? == false && name_taken == false
+        p session[:to_complete]
+        db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [firstname, class_name, session[:to_complete]])
+        session[:id] = session[:to_complete]
+        redirect('/users/home')
+    else
+        redirect('/users/first_login')
+    end
+
 end
 
 post("/login") do
     username = params["username"]
     password = params["password"]
 
-    tester = completed_profile(username)
-    # p tester
-    if tester[0] == false
-        session[:to_complete] = tester[1]
-        redirect('/users/first_login')
-    end
-
+    if session[:attempt].nil?
+        session[:attempt] = Time.now
+    elsif Time.now - session[:attempt] < 20 
+        session[:error] = "Cannot log in at this moment. Wait a minute and try again"
+        redirect('/error')
+    end 
+    p Time.now - session[:attempt]
+    session[:attempt] = Time.now
+    
+    
     result = login_snake(username, password)
-
-    if result['error'] == nil
+    p result
+    
+    if result[:error].nil?
         session[:id] = result[:current_user]
-
+        
+        
         if result[:admin] == true
             redirect('/admin/home/name')
         else
             redirect('/users/home')
         end
+    elsif result[:error] == "Not completed profile"
+        tester = completed_profile(username)
+        p tester
+        if tester[0] == false && result[:admin] == false
+            session[:to_complete] = tester[1]
+            redirect('/users/first_login')
+        end
     else
-        session[:error] = result['error']
+        session[:error] = result[:error]
         redirect('/error') 
     end
-
 end
 
 post('/users/logout') do

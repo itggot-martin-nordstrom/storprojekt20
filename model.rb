@@ -7,9 +7,14 @@ def set_db()
 end
 
 def username_from_id(user_id)
+    db = set_db()    
     name = db.execute('SELECT username FROM users WHERE id = (?)', user_id)
-
     return name
+end
+def id_from_username(username)
+    db = set_db()    
+    id = db.execute('SELECT id FROM users WHERE username = (?)', username)
+    return id
 end
 
 def user_exists(username)
@@ -29,12 +34,27 @@ def completed_profile(username)
     boolean = true
 
     result = db.execute("SELECT id,name FROM users WHERE username=?", username)
-    id = result.first['id']
-    if result.first['name'] == nil
+    if result.first['name'].nil?
         boolean = false
+        id = result.first['id']
+    else
+        id = nil
     end
 
     return boolean, id
+end
+
+def name_taken(name, class_name)
+    db = set_db()
+
+    boolean = false
+    result = db.execute("SELECT name FROM users WHERE name = (?) AND class_name = (?)", [name, class_name])
+
+    if result.empty? == false
+        boolean = true
+    end
+
+    return boolean
 end
 
 def signup_passwords(username, password, confirm)
@@ -65,13 +85,15 @@ end
 
 def login_snake(username, password)
     db = set_db()
-    result = db.execute("SELECT id, password_digest, class_name FROM users WHERE username = ?", username)
+    result = db.execute("SELECT id, name, password_digest, class_name FROM users WHERE username = ?", username)
     admin = false
 
     # p result
 
     if result.empty?    
         errormsg = "Invalid credentials"
+    elsif result.first['name'].nil?
+        errormsg = "Not completed profile"
     else
         password_digest = result.first["password_digest"]
         if BCrypt::Password.new(password_digest) == password
