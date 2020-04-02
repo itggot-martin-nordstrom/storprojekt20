@@ -44,6 +44,10 @@ def completed_profile(username)
     return boolean, id
 end
 
+def finish_profile(name, class_name, id)
+    db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [name, class_name, id])
+end
+
 def name_taken(name, class_name)
     db = set_db()
 
@@ -63,12 +67,13 @@ def signup_passwords(username, password, confirm)
 
     existor = user_exists(username)
     if existor != true
+        
         if password == confirm
+            
             if password.length >= 4
                 password_digest = BCrypt::Password.create(password)
                 db.execute('INSERT INTO users(username, password_digest) VALUES (?,?)', [username, password_digest])
                 current_user = db.execute('SELECT id FROM users WHERE username=?', username).first['id']
-                # p "hej" + current_user.to_s
                 errormsg = nil
             else
                 errormsg = "Password too short"
@@ -87,8 +92,6 @@ def login_snake(username, password)
     db = set_db()
     result = db.execute("SELECT id, name, password_digest, class_name FROM users WHERE username = ?", username)
     admin = false
-
-    # p result
 
     if result.empty?    
         errormsg = "Invalid credentials"
@@ -133,9 +136,7 @@ end
 
 def fetch_options(order)
     db = set_db()
-    
-    p order
-    
+
     options = db.execute("SELECT option_id, name, class_name, content, no_of_votes FROM users LEFT JOIN options ON users.id = options.for_user WHERE option_id IS NOT NULL ORDER BY #{order}")
     
     return options
@@ -156,7 +157,7 @@ def fetch_voting_page(user, target)
     else
         options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes DESC', target)
         users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND target_id = ?)", [user, target])
-        # p users_vote
+
         if users_vote != []
             users_vote = users_vote.first['content']
         end
@@ -175,7 +176,6 @@ def new_option(content, target)
 
     if exister.empty?
         db.execute('INSERT INTO options(content, for_user, no_of_votes) VALUES (?,?, 0)', [content, target])
-        # redirect("/users/voting/#{option_for}")
     else
         errormsg = "Option already exists, go vote for it!"
     end
@@ -197,7 +197,6 @@ def vote(user, target, option)
         db.execute('UPDATE options SET no_of_votes=? WHERE option_id=?', [no_of_votes-1, old_id])
     end
     db.execute('INSERT INTO votes(voter_id, target_id, option_id) VALUES (?,?,?)', [user, target, option])
-
 
     # counts votes_for
     number = db.execute('SELECT option_id FROM votes WHERE option_id=?', option).length
