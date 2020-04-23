@@ -13,7 +13,7 @@ db.results_as_hash = true
 
 before do
     path = request.path_info
-    whitelist = ['/', '/login', '/sign_up', '/users/first_login', '/users/complete_profile', '/error']
+    whitelist = ['/', '/login', '/sign_up', '/users/update', '/users/complete_profile', '/error']
     redirect = true
 
     whitelist.each do |e|
@@ -41,36 +41,36 @@ post('/sign_up') do
     password = params["password"]
     confirm_password = params["c_password"]
 
-    result = signup_passwords(username, password, confirm_password)
+    result = signup(username, password, confirm_password)
 
     # p result['error']
 
-    if result['error'] == nil
+    if result['error'] == false
         # session[:id] = result[:current_user]
-        redirect('users/first_login')
+        redirect('users/update')
     else
         session[:error] = result['error']
         redirect('/error')
     end
 end
 
-get('/users/first_login') do 
-    slim(:"users/first_login")
+get('/users/update') do 
+    slim(:"users/update")
 end
 
-post('/users/complete_profile') do 
+post('/users/update') do 
     firstname = params["new_name"].downcase
     class_name = params["class"].downcase
 
     name_taken = name_taken(firstname, class_name)
 
     if firstname.nil? == false && class_name.nil? == false && name_taken == false
-        finish_profile(firstname, class_name, session[:to_complete])
+        update_profile(firstname, class_name, session[:to_complete])
         session[:id] = session[:to_complete]
 
         redirect('/users/home')
     else
-        redirect('/users/first_login')
+        redirect('/users/update')
     end
 
 end
@@ -86,13 +86,13 @@ post("/login") do
         session[:error] = "Cannot log in at this moment. Wait a minute and try again"
         redirect('/error')
     end 
-    p Time.now - session[:attempt]
+    # p Time.now - session[:attempt]
     session[:attempt] = Time.now
 
 
     result = login_snake(username, password)
     
-    if result[:error].nil?
+    if result[:error] == false
         session[:id] = result[:current_user]
         
         if result[:admin] == true
@@ -103,9 +103,9 @@ post("/login") do
     elsif result[:error] == "Not completed profile"
         tester = completed_profile(username)
         
-        if tester[0] == false && result[:admin] == false
-            session[:to_complete] = tester[1]
-            redirect('/users/first_login')
+        if tester[:completed] == false && result[:admin] == false
+            session[:to_complete] = tester[:id]
+            redirect('/users/update')
         end
     else
         session[:error] = result[:error]
@@ -144,7 +144,7 @@ post('/admin/order_by') do
     redirect("/admin/home/#{order}")
 end
 
-post('/admin/remove_option/:id') do
+post('/admin/delete/:id') do
     option_id = params['id']
     remove_option(option_id)
 
@@ -160,7 +160,7 @@ get('/users/voting/:id') do
     options = result[:options]
     users_vote = result[:users_vote]
     
-    if errormsg != nil
+    if errormsg != false
         session[:error] = errormsg
 
         redirect('/error')
@@ -176,15 +176,15 @@ post('/vote/new/:option_for') do
     
     errormsg = new_option(content, option_for)
 
-    if errormsg != nil
+    if errormsg != false
         session[:error] = errormsg
         redirect('/error')
     else
-        redirect("/vote/new/#{option_for}")
+        redirect("/users/voting/#{option_for}")
     end
 end
 
-post('/vote/:vote_for/:option_id') do
+post('/vote/update/:vote_for/:option_id') do
     current_user = session[:id]
     option_id = params['option_id']
     vote_for = params['vote_for']

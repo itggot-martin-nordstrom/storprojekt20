@@ -8,7 +8,7 @@ a href="/users/home" Back
 
 article.option
     - votes.each do |option|
-        form action="/vote/#{vote_for}/#{option['option_id']}" method="post"
+        form action="/vote/update/#{vote_for}/#{option['option_id']}" method="post"
             fieldset
                 h3 = option["content"]
                 - if option["no_of_votes"] != nil
