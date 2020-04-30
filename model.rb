@@ -75,6 +75,7 @@ end
 # @param [String] class_name The name of the user's class
 # @param [Integer] id The user's id
 def update_profile(name, class_name, id)
+    db = set_db()
     db.execute("UPDATE users SET name=?, class_name=? WHERE id=?", [name, class_name, id])
 end
 
@@ -234,13 +235,14 @@ def fetch_voting_page(user_id, target_id)
     if user_classname != target_classname
         errormsg = "Oops, you can't vote for that user!"
     else
-        options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes DESC', target)
-        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND target_id = ?)", [user, target])
+        options = db.execute('SELECT option_id, content, no_of_votes FROM options WHERE for_user = ? ORDER BY no_of_votes DESC', target_id)
+        users_vote = db.execute("SELECT content FROM options WHERE option_id = (SELECT option_id FROM votes WHERE voter_id = ? AND target_id = ?)", [user_id, target_id])
 
         if users_vote != []
             users_vote = users_vote.first['content']
         end
     end
+    # p errormsg
 
     return {options: options, error: errormsg, users_vote: users_vote}
 end

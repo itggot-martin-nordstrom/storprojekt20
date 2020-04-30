@@ -42,14 +42,14 @@ post('/sign_up') do
     confirm_password = params["c_password"]
 
     result = signup(username, password, confirm_password)
+    # id = id_from_username(username).first["id"]
+    # p result
 
-    # p result['error']
-
-    if result['error'] == false
-        # session[:id] = result[:current_user]
-        redirect('users/update')
+    if result[:error] == false
+        session[:to_complete] = result[:current_user]
+        redirect("users/update")
     else
-        session[:error] = result['error']
+        session[:error] = result[:error]
         redirect('/error')
     end
 end
@@ -63,6 +63,7 @@ post('/users/update') do
     class_name = params["class"].downcase
 
     name_taken = name_taken(firstname, class_name)
+    # session[:to_complete] = params["id"]
 
     if firstname.nil? == false && class_name.nil? == false && name_taken == false
         update_profile(firstname, class_name, session[:to_complete])
@@ -148,15 +149,16 @@ post('/admin/delete/:id') do
     option_id = params['id']
     remove_option(option_id)
 
-    redirect('/users/home')
+    redirect('/admin/home/option_id')
 end
 
 get('/users/voting/:id') do
     id = params["id"]
     current_user = session[:id]
     result = fetch_voting_page(current_user, id)
+    p result
     
-    errormsg = result[:errormsg]
+    errormsg = result[:error]
     options = result[:options]
     users_vote = result[:users_vote]
     
